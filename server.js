@@ -1,51 +1,52 @@
 const express = require("express");
+const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const sharp = require("sharp");
+const sharp = require("sharp"); // Back to Sharp!
 
 const app = express();
 const PORT = 3000;
 
-// This points to your existing images folder containing the 18 industry subfolders
+// Multer catches the file upload and holds it in memory
+const upload = multer({ storage: multer.memoryStorage() });
+
+// The root destination folder
 const baseDir = path.join(__dirname, "images");
 
-// This route catches requests exactly like an edge server
-app.get("/images/:industry/:filename", async (req, res) => {
-  const { industry, filename } = req.params;
+// Serve the HTML page
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-  // Look for the original file on the hard drive
-  const originalPath = path.join(baseDir, industry, filename);
+// The endpoint you submit to
+app.post("/upload", upload.single("file"), async (req, res) => {
+  const relativePath = req.body.relativePath;
 
-  // If the file doesn't exist, return a 404
-  if (!fs.existsSync(originalPath)) {
-    return res.status(404).send("Image not found");
+  if (!relativePath || !req.file) {
+    return res.status(400).send("Missing file data");
+  }
+
+  // Change the extension from .png to .webp
+  const webpRelativePath = relativePath.replace(/\.png$/i, ".webp");
+  const fullOutputPath = path.join(baseDir, webpRelativePath);
+  const dir = path.dirname(fullOutputPath);
+
+  // Recreate the industry subfolder if it doesn't exist
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 
   try {
-    // 1. Read the original file
-    // 2. Automatically strip metadata (Sharp does this by default)
-    // 3. Convert to WebP on the fly
-    const webpBuffer = await sharp(originalPath)
-      .webp({ quality: 80 })
-      .toBuffer();
+    // Sharp takes the raw uploaded file, converts to WebP, removes metadata, and saves it
+    await sharp(req.file.buffer).webp({ quality: 80 }).toFile(fullOutputPath);
 
-    // 4. Force the browser to recognize it as a WebP, even if the URL says .png
-    res.set("Content-Type", "image/webp");
-
-    // 5. Add caching headers so the browser remembers it, just like Cloudflare
-    res.set("Cache-Control", "public, max-age=31536000");
-
-    // 6. Send the optimized image to the user
-    res.send(webpBuffer);
-
-    console.log(`Served on-the-fly WebP for: ${industry}/${filename}`);
+    res.send("Converted and saved");
   } catch (error) {
-    console.error(`Error processing ${filename}:`, error);
-    res.status(500).send("Error processing image");
+    console.error(`Error processing ${relativePath}:`, error);
+    res.status(500).send("Conversion failed");
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Local Edge Server running on http://localhost:${PORT}`);
-  console.log(`Test it out by opening a browser to an image URL!`);
+  console.log(`🚀 Server running! Visit http://localhost:${PORT}`);
 });

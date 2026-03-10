@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Upload to Sharp</title>
+  </head>
+  <body style="font-family: sans-serif; padding: 20px">
+    <h2>Submit PNGs to Sharp Converter</h2>
+    <input
+      type="file"
+      id="folderInput"
+      webkitdirectory
+      multiple
+      style="margin-bottom: 20px"
+    />
+    <h3 id="status"></h3>
+
+    <script>
+      const folderInput = document.getElementById("folderInput");
+      const statusText = document.getElementById("status");
+
+      folderInput.addEventListener("change", async (event) => {
+        // Grab only the PNGs from the selected folder
+        const files = Array.from(event.target.files).filter(
+          (f) => f.type === "image/png",
+        );
+
+        if (files.length === 0) {
+          statusText.innerText = "No PNGs found.";
+          return;
+        }
+
+        statusText.innerText = `Sending ${files.length} images to Sharp...`;
+        let successCount = 0;
+
+        for (let file of files) {
+          // file.webkitRelativePath gives us "images/plumbing/hero.png"
+          // We split it to just send "plumbing/hero.png" to the server
+          const pathParts = file.webkitRelativePath.split("/");
+          const filename = pathParts.pop();
+          const industry = pathParts.pop();
+          const relativePath = industry + "/" + filename;
+
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("relativePath", relativePath);
+
+          try {
+            // Hit the Express endpoint
+            await fetch("/upload", { method: "POST", body: formData });
+            successCount++;
+            statusText.innerText = `Converted ${successCount} / ${files.length} via Sharp`;
+          } catch (err) {
+            console.error("Upload failed for", filename);
+          }
+        }
+
+        statusText.innerText = `✅ Success! Sharp converted ${successCount} files to WebP.`;
+      });
+    </script>
+  </body>
+</html>
