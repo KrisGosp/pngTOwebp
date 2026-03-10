@@ -11,7 +11,7 @@ QRCode.toFile(
       dark: "#8474f9", // The dots (can be any hex color)
       light: "#0000", // The background (can be transparent: '#0000')
     },
-    width: 500, // High res for printing
+    width: 1000, // High res for printing
     margin: 2,
     errorCorrectionLevel: "H", // THIS IS THE SECRET SAUCE FOR DESIGN
   },
